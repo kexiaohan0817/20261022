@@ -1,0 +1,752 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f3f6f4">
+  <title>天氣動畫連連看</title>
+  <style>
+    /* 版面：單頁遊戲、天氣卡片與響應式配置 */
+    :root {
+      color-scheme: light;
+      --ink: #20343a;
+      --muted: #718287;
+      --paper: #ffffff;
+      --line: #dce6e3;
+      --teal: #176b68;
+      --teal-soft: #e4f2ef;
+      --coral: #e8755c;
+      --gold: #edbd56;
+      font-family: "Trebuchet MS", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+      color: var(--ink);
+      background: #f3f6f4;
+      font-synthesis: none;
+      text-rendering: optimizeLegibility;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      min-width: 320px;
+      min-height: 100vh;
+      margin: 0;
+      background-color: #f3f6f4;
+      background-image: radial-gradient(#d7e2dd 0.7px, transparent 0.7px);
+      background-size: 17px 17px;
+    }
+    button { font: inherit; }
+    .app { width: min(1020px, calc(100% - 40px)); margin: 0 auto; padding: 25px 0 20px; }
+    .topbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 18px; }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand-icon { width: 35px; height: 35px; display: grid; place-items: center; border-radius: 11px; background: var(--teal); color: white; font-size: 19px; }
+    .brand-name { font-size: 13px; font-weight: 800; letter-spacing: .8px; }
+    .brand-name small { display: block; margin-top: 2px; color: var(--muted); font-size: 9px; font-weight: 600; letter-spacing: 1.1px; }
+    .status { display: flex; align-items: center; gap: 8px; }
+    .stat { min-width: 94px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; background: rgba(255,255,255,.8); text-align: center; }
+    .stat-label { display: block; margin-bottom: 2px; color: var(--muted); font-size: 9px; }
+    .stat-value { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .intro { display: flex; justify-content: space-between; align-items: end; margin: 0 2px 15px; }
+    .eyebrow { margin: 0 0 5px; color: var(--teal); font-size: 10px; font-weight: 800; letter-spacing: 1.2px; }
+    h1 { margin: 0; font-size: clamp(23px, 4vw, 31px); line-height: 1.2; letter-spacing: 0; }
+    .intro-note { max-width: 270px; margin: 0 0 2px 15px; color: var(--muted); font-size: 11px; line-height: 1.6; text-align: right; }
+
+    .weather-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .weather-card { min-width: 0; padding: 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); box-shadow: 0 3px 12px rgba(34,70,66,.035); transition: border-color .16s, transform .16s, box-shadow .16s; }
+    .weather-card.is-target { border-color: #4b9a8b; box-shadow: 0 0 0 3px rgba(75,154,139,.13); transform: translateY(-2px); }
+    .weather-card.is-correct { border-color: #63a98a; }
+    .weather-card.is-incorrect { border-color: #e28a73; }
+    .card-heading { display: flex; justify-content: space-between; align-items: center; margin: 0 1px 6px; }
+    .number-tag { color: #4c6a6a; font-size: 10px; font-weight: 800; letter-spacing: .4px; }
+    .answer-mark { min-height: 13px; color: #53836b; font-size: 9px; font-weight: 700; }
+    .weather-canvas { width: 100%; height: auto; display: block; aspect-ratio: 720 / 480; overflow: hidden; border-radius: 5px; background: #dcefed; }
+    .drop-slot { min-height: 35px; display: flex; align-items: center; justify-content: center; margin-top: 7px; padding: 4px; border: 1.5px dashed #bdceca; border-radius: 5px; background: #fbfdfc; color: #8a9b9b; font-size: 10px; transition: background .15s, border-color .15s; }
+    .drop-slot.over { border-color: var(--teal); background: var(--teal-soft); box-shadow: 0 0 0 2px rgba(23,107,104,.1); }
+    .drop-slot.is-filled { border-style: solid; border-color: #a8cfc1; background: #eff8f3; }
+    .drop-slot.is-result-correct { border: 2px solid #54a66f; background: #e7f5e9; color: #276642; font-weight: 800; }
+    .drop-slot.is-result-incorrect { border: 2px solid #d96e68; background: #fff0ed; color: #a7423d; }
+    .drop-slot.is-result-empty { border: 2px solid #e2a044; background: #fff7e7; color: #956012; }
+    .slot-result { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; }
+    .slot-result small { color: inherit; font-size: 8px; font-weight: 500; }
+
+    .bottom-area { margin-top: 14px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: rgba(255,255,255,.9); }
+    .bank-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 0 1px 10px; }
+    .bank-heading h2 { margin: 0; font-size: 12px; }
+    .bank-heading p { margin: 0; color: var(--muted); font-size: 9px; }
+    .label-bank { min-height: 46px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 7px; align-items: stretch; }
+    .label-chip { min-width: 0; min-height: 43px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 5px 4px; border: 1px solid #c9dcd6; border-radius: 999px; background: #f8fcfa; color: #225b58; cursor: grab; touch-action: none; user-select: none; transition: background .15s, border-color .15s, box-shadow .15s, opacity .15s, transform .15s; }
+    .label-chip:hover { border-color: #65a296; background: #eff8f4; box-shadow: 0 3px 10px rgba(42,103,93,.1); transform: translateY(-1px); }
+    .label-chip:active { cursor: grabbing; }
+    .label-chip.is-dragging { z-index: 10; opacity: .22; }
+    .label-chip.is-ghost { position: fixed; z-index: 20; pointer-events: none; opacity: .88; box-shadow: 0 9px 22px rgba(32,52,58,.2); transform: rotate(-2deg) scale(1.04); }
+    .label-chip.is-placed { min-height: 0; width: 100%; padding: 4px 6px; border-color: transparent; background: transparent; box-shadow: none; cursor: grab; }
+    .label-chip.is-placed:hover { border-color: #b4d2c6; background: #e5f3ec; }
+    .label-chip.is-placed .chip-chinese { font-size: 11px; }
+    .chip-chinese { overflow: hidden; max-width: 100%; font-size: 11px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+    .chip-english { overflow: hidden; max-width: 100%; color: #738b87; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+    .bank-empty { min-height: 43px; grid-column: 1 / -1; display: grid; place-items: center; border: 1px dashed #bdceca; border-radius: 6px; color: #8a9b9b; font-size: 10px; }
+    .actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; }
+    .game-hint { margin: 0; color: var(--muted); font-size: 9px; line-height: 1.5; }
+    .button-row { display: flex; gap: 7px; }
+    .action-button { min-height: 34px; padding: 0 13px; border: 1px solid #cddbd7; border-radius: 5px; background: white; color: var(--ink); cursor: pointer; font-size: 10px; font-weight: 800; transition: background .15s, transform .15s; }
+    .action-button:hover { background: #f0f7f4; transform: translateY(-1px); }
+    .action-button.primary { border-color: var(--teal); background: var(--teal); color: white; }
+    .action-button.primary:hover { background: #105a57; }
+    .action-button:focus-visible, .label-chip:focus-visible { outline: 3px solid #edbd56; outline-offset: 2px; }
+    .results { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; overflow-y: auto; padding: 20px; background: rgba(17,30,34,.62); backdrop-filter: blur(3px); }
+    .results[hidden] { display: none; }
+    .results-modal { width: min(520px, 100%); max-height: min(90vh, 760px); overflow-y: auto; padding: 22px; border: 1px solid #dce7e2; border-radius: 9px; background: #fff; box-shadow: 0 24px 80px rgba(13,31,32,.3); animation: modal-in .2s ease-out both; }
+    .results-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+    .results-header h2 { margin: 0; font-size: 16px; }
+    .modal-close { width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 5px; background: white; color: var(--muted); cursor: pointer; font-size: 19px; line-height: 1; }
+    .score-block { padding: 16px 0 10px; text-align: center; }
+    .score-number { display: block; color: var(--teal); font-size: 31px; font-weight: 900; line-height: 1.15; }
+    .score-percent { display: block; margin-top: 3px; color: #657a7a; font-size: 14px; font-weight: 800; }
+    .score-time { margin: 8px 0 0; color: var(--muted); font-size: 11px; }
+    .encouragement { margin: 5px 0 11px; color: #b36c32; font-size: 13px; font-weight: 800; text-align: center; }
+    .results-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
+    .results-list li { min-width: 0; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 7px; padding: 8px; border: 1px solid #e6ece8; border-radius: 5px; background: #fbfdfc; font-size: 9px; }
+    .result-number { color: #748784; font-weight: 800; }
+    .result-answers { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .result-answers span, .result-answers small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .result-answers small { color: var(--muted); font-size: 8px; }
+    .result-ok { color: #478462; font-weight: 900; }
+    .result-no { color: #d26b57; font-weight: 900; }
+    .modal-actions { display: flex; justify-content: center; gap: 8px; margin-top: 15px; }
+    @keyframes modal-in { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    .page-foot { display: flex; justify-content: space-between; gap: 10px; padding: 11px 2px 0; color: #899894; font-size: 9px; }
+
+    @media (max-width: 600px) {
+      .app { width: calc(100% - 22px); padding-top: 13px; }
+      .topbar { margin-bottom: 14px; }
+      .stat { min-width: 78px; padding: 7px 8px; }
+      .stat-label { font-size: 8px; }
+      .stat-value { font-size: 12px; }
+      .intro { margin-bottom: 11px; }
+      .intro-note { max-width: 170px; font-size: 9px; }
+      .weather-grid { gap: 7px; }
+      .weather-card { padding: 6px; border-radius: 6px; }
+      .card-heading { margin-bottom: 4px; }
+      .number-tag { font-size: 9px; }
+      .answer-mark { font-size: 8px; }
+      .drop-slot { min-height: 32px; margin-top: 5px; padding: 3px 2px; font-size: 8px; }
+      .label-bank { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+      .label-chip { min-height: 39px; }
+      .chip-chinese { font-size: 10px; }
+      .chip-english { font-size: 7px; }
+      .bottom-area { margin-top: 10px; padding: 9px; }
+      .actions { align-items: end; }
+      .game-hint { max-width: 120px; }
+      .action-button { min-height: 33px; padding: 0 9px; font-size: 9px; }
+      .results { padding: 10px; }
+      .results-modal { padding: 16px; }
+      .results-list { gap: 5px; }
+      .results-list li { gap: 5px; padding: 7px 6px; }
+    }
+    @media (max-width: 370px) {
+      .app { width: calc(100% - 16px); }
+      .weather-grid { gap: 5px; }
+      .weather-card { padding: 4px; }
+      .drop-slot { min-height: 30px; font-size: 7px; }
+      .intro-note { max-width: 140px; }
+      .button-row { gap: 4px; }
+      .action-button { padding: 0 7px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand"><span class="brand-icon" aria-hidden="true">☼</span><span class="brand-name">天氣觀察室<small>WEATHER MATCH</small></span></div>
+      <div class="status" aria-label="遊戲狀態">
+        <div class="stat"><span class="stat-label">已配對</span><span class="stat-value" id="match-count">0/6</span></div>
+        <div class="stat"><span class="stat-label">時間</span><span class="stat-value" id="timer">00:00</span></div>
+      </div>
+    </header>
+
+    <section class="intro" aria-labelledby="title">
+      <div><p class="eyebrow">觀察天氣・開始配對</p><h1 id="title">天氣動畫連連看</h1></div>
+      <p class="intro-note">觀察每張動畫，將下方天氣名稱拖到相對應的放置格。</p>
+    </section>
+
+    <section class="weather-grid" id="weather-grid" aria-label="六種天氣動畫"></section>
+
+    <section class="bottom-area" aria-label="天氣名稱與操作">
+      <div class="bank-heading"><h2>天氣名稱</h2><p>可拖回此區取消配對，也可在格子間交換</p></div>
+      <div class="label-bank" id="label-bank" aria-label="可拖曳的天氣名稱"></div>
+      <div class="actions">
+        <p class="game-hint" id="game-hint" aria-live="polite">拖曳名稱開始作答，放錯可隨時調整。</p>
+        <div class="button-row">
+          <button class="action-button" id="restart-button" type="button">重新開始</button>
+          <button class="action-button primary" id="submit-button" type="button">交卷看成績</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="results" id="results" role="dialog" aria-modal="true" aria-labelledby="results-title" aria-describedby="encouragement" hidden>
+      <div class="results-modal">
+        <div class="results-header"><h2 id="results-title">測驗成績</h2><button class="modal-close" id="close-results" type="button" aria-label="關閉成績視窗">×</button></div>
+        <div class="score-block"><strong class="score-number" id="score-number">0 / 6</strong><span class="score-percent" id="score-percent">0%</span><p class="score-time" id="score-time">用時：00:00</p></div>
+        <p class="encouragement" id="encouragement"></p>
+        <ul class="results-list" id="results-list"></ul>
+        <div class="modal-actions"><button class="action-button" id="close-results-button" type="button">關閉</button><button class="action-button primary" id="modal-restart" type="button">再玩一次</button></div>
+      </div>
+    </section>
+    <footer class="page-foot"><span>六種天氣・仔細觀察每一種變化</span><span>動畫由 Canvas 即時繪製</span></footer>
+  </main>
+
+  <script>
+    "use strict";
+
+    // 版面：題目資料、答案與遊戲畫面初始化
+    const weatherData = [
+      { id: "thunderstorm", chinese: "打雷閃電", english: "Thunderstorm", answer: "thunderstorm", sky: "#263e5b" },
+      { id: "windy", chinese: "颱大風", english: "Windy", answer: "windy", sky: "#dcecf0" },
+      { id: "cloudy", chinese: "多雲", english: "Cloudy", answer: "cloudy", sky: "#d5e2e5" },
+      { id: "snowy", chinese: "下雪", english: "Snowy", answer: "snowy", sky: "#d8edf3" },
+      { id: "sunny", chinese: "晴天", english: "Sunny", answer: "sunny", sky: "#f6e9bf" },
+      { id: "rainy", chinese: "下雨", english: "Rainy", answer: "rainy", sky: "#afc7d2" }
+    ];
+    const answerByCard = weatherData.map((item) => item.answer);
+    const state = { slots: Array(weatherData.length).fill(null) };
+    const grid = document.querySelector("#weather-grid");
+    const bank = document.querySelector("#label-bank");
+    const results = document.querySelector("#results");
+    let submitted = false;
+    let timerInterval = null;
+    let timerStartedAt = Date.now();
+    let timerStoppedAt = null;
+    let finalElapsedSeconds = null;
+    let dragInfo = null;
+    let dragGhost = null;
+
+    function createCard(item, index) {
+      const card = document.createElement("article");
+      card.className = "weather-card";
+      card.dataset.cardIndex = index;
+      card.innerHTML = `
+        <div class="card-heading"><span class="number-tag">#${index + 1}</span><span class="answer-mark" aria-live="polite"></span></div>
+        <canvas class="weather-canvas" width="720" height="480" data-weather="${item.id}" role="img" aria-label="${item.chinese}天氣動畫"></canvas>
+        <div class="drop-slot" data-slot="${index}" tabindex="0" role="button" aria-label="#${index + 1} 天氣名稱放置格">拖曳名稱到這裡</div>`;
+      return card;
+    }
+
+    function shuffledLabels() {
+      const labels = [...weatherData];
+      for (let index = labels.length - 1; index > 0; index -= 1) {
+        const randomIndex = Math.floor(Math.random() * (index + 1));
+        [labels[index], labels[randomIndex]] = [labels[randomIndex], labels[index]];
+      }
+      return labels;
+    }
+
+    function render() {
+      bank.replaceChildren();
+      const placedIds = new Set(state.slots.filter(Boolean));
+      const available = shuffledLabels().filter((item) => !placedIds.has(item.id));
+      if (available.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "bank-empty";
+        empty.textContent = "六個名稱都已放入格子";
+        bank.append(empty);
+      } else {
+        available.forEach((item) => bank.append(createLabel(item)));
+      }
+      state.slots.forEach((id, slotIndex) => {
+        const slot = document.querySelector(`[data-slot="${slotIndex}"]`);
+        slot.replaceChildren();
+        slot.classList.toggle("is-filled", Boolean(id));
+        slot.classList.remove("over", "is-result-correct", "is-result-incorrect", "is-result-empty");
+        if (id) {
+          const item = weatherData.find((entry) => entry.id === id);
+          slot.append(createLabel(item, slotIndex));
+        } else {
+          slot.textContent = "拖曳名稱到這裡";
+        }
+      });
+      updateMatchCount();
+    }
+
+    function createLabel(item, slotIndex = null) {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = `label-chip${slotIndex === null ? "" : " is-placed"}`;
+      chip.dataset.wordId = item.id;
+      if (slotIndex !== null) chip.dataset.sourceSlot = slotIndex;
+      chip.setAttribute("aria-label", `${item.chinese}，${item.english}，可拖曳`);
+      chip.innerHTML = `<span class="chip-chinese">${item.chinese}</span><span class="chip-english">${item.english}</span>`;
+      chip.addEventListener("pointerdown", startDrag);
+      chip.addEventListener("keydown", (event) => handleLabelKeydown(event, chip));
+      return chip;
+    }
+
+    function updateMatchCount() {
+      const occupiedSlots = state.slots.filter(Boolean).length;
+      document.querySelector("#match-count").textContent = `${occupiedSlots}/6`;
+    }
+
+    weatherData.forEach((item, index) => grid.append(createCard(item, index)));
+    render();
+
+    // 動畫：六個 720×480 場景共用一個 rAF 時鐘，各自保存粒子狀態。
+    const CANVAS_WIDTH = 720;
+    const CANVAS_HEIGHT = 480;
+    const animationCanvases = [...document.querySelectorAll(".weather-canvas")];
+    const randomBetween = (min, max) => min + Math.random() * (max - min);
+
+    function makeParticles(count, createParticle) {
+      return Array.from({ length: count }, (_, index) => createParticle(index));
+    }
+
+    function makeRainParticle() {
+      return { x: randomBetween(-20, 740), y: randomBetween(40, 450), speed: randomBetween(280, 520), length: randomBetween(12, 25) };
+    }
+
+    const thunderState = {
+      clouds: [{ x: 130, y: 130, scale: 1.25 }, { x: 370, y: 110, scale: 1.55 }, { x: 610, y: 142, scale: 1.2 }],
+      rain: makeParticles(72, makeRainParticle), nextLightning: randomBetween(2, 4), lightningAt: -10,
+      bolt: [], lastTime: null
+    };
+    const windState = {
+      leaves: makeParticles(18, () => ({ x: randomBetween(0, 720), y: randomBetween(125, 405), speed: randomBetween(130, 240), sway: randomBetween(8, 27), phase: randomBetween(0, Math.PI * 2), spin: randomBetween(-3, 3), size: randomBetween(8, 15) })),
+      gusts: Array.from({ length: 7 }, (_, index) => ({ x: index * 118, y: 75 + index * 45, speed: 250 + index * 24, length: 75 + index % 3 * 24 })), lastTime: null
+    };
+    const cloudyState = {
+      clouds: [{ x: 40, y: 165, scale: 1.1, speed: 17 }, { x: 375, y: 238, scale: .78, speed: 25 }, { x: 620, y: 112, scale: 1.35, speed: 12 }], lastTime: null
+    };
+    const snowyState = {
+      flakes: makeParticles(60, () => ({ x: randomBetween(0, 720), y: randomBetween(0, 480), speed: randomBetween(24, 88), radius: randomBetween(2, 6), sway: randomBetween(8, 30), phase: randomBetween(0, Math.PI * 2) })), lastTime: null
+    };
+    const rainyState = {
+      clouds: [{ x: 180, y: 115, scale: 1.35 }, { x: 520, y: 145, scale: 1.5 }],
+      drops: makeParticles(120, () => ({ x: randomBetween(-15, 735), y: randomBetween(45, 445), speed: randomBetween(320, 620), length: randomBetween(12, 25), drift: randomBetween(45, 90) })),
+      ripples: [], lastTime: null
+    };
+    const sunnyState = { lastTime: null };
+
+    function prepareCanvas(canvas) {
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      const backingWidth = Math.round(CANVAS_WIDTH * ratio);
+      const backingHeight = Math.round(CANVAS_HEIGHT * ratio);
+      if (canvas.width !== backingWidth || canvas.height !== backingHeight) {
+        canvas.width = backingWidth;
+        canvas.height = backingHeight;
+      }
+      const ctx = canvas.getContext("2d", { alpha: false });
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      return ctx;
+    }
+
+    const sceneContexts = animationCanvases.map(prepareCanvas);
+    function makeSky(ctx, top, bottom) {
+      const gradient = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT);
+      gradient.addColorStop(0, top);
+      gradient.addColorStop(1, bottom);
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    }
+
+    function drawCloud(ctx, x, y, scale, color) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.ellipse(x, y + 23 * scale, 79 * scale, 31 * scale, 0, 0, Math.PI * 2);
+      ctx.arc(x - 46 * scale, y + 4 * scale, 34 * scale, Math.PI, Math.PI * 2);
+      ctx.arc(x - 8 * scale, y - 20 * scale, 48 * scale, Math.PI, Math.PI * 2);
+      ctx.arc(x + 40 * scale, y - 2 * scale, 37 * scale, Math.PI, Math.PI * 2);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function drawGround(ctx, color, horizon = 418) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(0, horizon + 12);
+      ctx.quadraticCurveTo(170, horizon - 14, 350, horizon + 4);
+      ctx.quadraticCurveTo(545, horizon + 24, 720, horizon - 5);
+      ctx.lineTo(720, 480); ctx.lineTo(0, 480); ctx.closePath(); ctx.fill();
+    }
+
+    function updateDelta(state, t) {
+      const delta = state.lastTime === null ? 0 : Math.min(.05, Math.max(0, t - state.lastTime));
+      state.lastTime = t;
+      return delta;
+    }
+
+    function drawThunder(ctx, t) {
+      const dt = updateDelta(thunderState, t);
+      makeSky(ctx, "#2b2d42", "#3a3b52");
+      thunderState.clouds.forEach((cloud, index) => {
+        const x = ((cloud.x + t * (index % 2 ? -5 : 7) + 850) % 850) - 65;
+        drawCloud(ctx, x, cloud.y + Math.sin(t * .55 + index) * 5, cloud.scale, index === 1 ? "#42465a" : "#4b4e62");
+      });
+      ctx.strokeStyle = "rgba(194,218,232,.48)"; ctx.lineWidth = 2; ctx.lineCap = "round";
+      thunderState.rain.forEach((drop) => {
+        drop.y += drop.speed * dt;
+        if (drop.y > 432) { drop.y = randomBetween(-35, 15); drop.x = randomBetween(0, 720); }
+        ctx.beginPath(); ctx.moveTo(drop.x, drop.y); ctx.lineTo(drop.x - 9, drop.y + drop.length); ctx.stroke();
+      });
+
+      if (t >= thunderState.nextLightning) {
+        thunderState.lightningAt = t;
+        thunderState.nextLightning = t + randomBetween(2, 4);
+        let x = randomBetween(280, 470);
+        let y = 170;
+        thunderState.bolt = [{ x, y }];
+        for (let point = 0; point < 6; point += 1) {
+          x += randomBetween(-34, 34); y += randomBetween(25, 43);
+          thunderState.bolt.push({ x, y });
+        }
+      }
+      const lightningAge = t - thunderState.lightningAt;
+      if (lightningAge >= 0 && lightningAge < .2) {
+        ctx.save(); ctx.shadowColor = "#fff6a6"; ctx.shadowBlur = 30; ctx.strokeStyle = "#fff8c7"; ctx.lineWidth = 8; ctx.lineJoin = "round";
+        ctx.beginPath(); thunderState.bolt.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y)); ctx.stroke();
+        ctx.shadowBlur = 0; ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 3; ctx.stroke(); ctx.restore();
+        const flashAlpha = .38 * Math.max(0, 1 - lightningAge / .15);
+        if (flashAlpha > 0) { ctx.fillStyle = `rgba(255,255,255,${flashAlpha})`; ctx.fillRect(0, 0, 720, 480); }
+      }
+      ctx.fillStyle = "#202335"; ctx.fillRect(0, 440, 720, 40);
+    }
+
+    function drawWindy(ctx, t) {
+      const dt = updateDelta(windState, t);
+      makeSky(ctx, "#72b8e8", "#d7eff6");
+      drawGround(ctx, "#77a96d", 420);
+      const sway = Math.sin(t * 2.1) * 13 + Math.sin(t * .72) * 9;
+      ctx.save(); ctx.translate(224, 424); ctx.rotate(Math.sin(t * 2.1) * .075);
+      ctx.fillStyle = "#795238"; ctx.beginPath(); ctx.moveTo(-17, 0); ctx.lineTo(-7, -148); ctx.lineTo(10, -148); ctx.lineTo(19, 0); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = "#795238"; ctx.lineWidth = 15; ctx.lineCap = "round";
+      ctx.beginPath(); ctx.moveTo(0, -112); ctx.lineTo(-42, -183); ctx.moveTo(3, -126); ctx.lineTo(55, -195); ctx.stroke();
+      const canopy = [{ x: -49, y: -206, r: 55, c: "#427c54" }, { x: 9, y: -234, r: 63, c: "#4d8c5d" }, { x: 64, y: -205, r: 52, c: "#39734c" }, { x: -4, y: -182, r: 54, c: "#5a9a64" }, { x: 48, y: -249, r: 42, c: "#679f68" }];
+      canopy.forEach((p) => { ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill(); });
+      ctx.restore();
+      ctx.strokeStyle = "rgba(255,255,255,.82)"; ctx.lineWidth = 2.5; ctx.lineCap = "round";
+      windState.gusts.forEach((gust, index) => {
+        gust.x = (gust.x + gust.speed * dt) % 900;
+        const alpha = .25 + .65 * (Math.sin(t * 2.3 + index) ** 2);
+        ctx.globalAlpha = alpha;
+        ctx.beginPath(); ctx.moveTo(gust.x - gust.length, gust.y + Math.sin(t * 3 + index) * 7);
+        ctx.quadraticCurveTo(gust.x - gust.length / 2, gust.y - 15, gust.x, gust.y); ctx.stroke();
+      });
+      ctx.globalAlpha = 1;
+      windState.leaves.forEach((leaf) => {
+        leaf.x += leaf.speed * dt;
+        if (leaf.x > 745) { leaf.x = -20; leaf.y = randomBetween(115, 405); }
+        const y = leaf.y + Math.sin(t * 3 + leaf.phase) * leaf.sway;
+        ctx.save(); ctx.translate(leaf.x + sway * .6, y); ctx.rotate(t * leaf.spin + leaf.phase);
+        ctx.fillStyle = leaf.phase % 2 > 1 ? "#ee9d41" : "#e9b64c";
+        ctx.beginPath(); ctx.ellipse(0, 0, leaf.size, leaf.size * .48, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      });
+    }
+
+    function drawCloudy(ctx, t) {
+      const dt = updateDelta(cloudyState, t);
+      makeSky(ctx, "#a8d7ef", "#edf7f8");
+      drawGround(ctx, "#82b777", 427);
+      ctx.fillStyle = "#ffd43b"; ctx.beginPath(); ctx.arc(574, 103, 57, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255,.35)"; ctx.beginPath(); ctx.arc(557, 86, 16, 0, Math.PI * 2); ctx.fill();
+      cloudyState.clouds.forEach((cloud) => {
+        cloud.x += cloud.speed * dt;
+        if (cloud.x - 115 * cloud.scale > 740) cloud.x = -130 * cloud.scale;
+        drawCloud(ctx, cloud.x, cloud.y + Math.sin(t * .42 + cloud.y) * 5, cloud.scale, "#ffffff");
+      });
+    }
+
+    function drawSnowy(ctx, t) {
+      const dt = updateDelta(snowyState, t);
+      makeSky(ctx, "#2a3a6a", "#4a5f91");
+      snowyState.flakes.forEach((flake) => {
+        flake.y += flake.speed * dt;
+        if (flake.y > 490) { flake.y = -10; flake.x = randomBetween(0, 720); }
+        const x = flake.x + Math.sin(t * 1.2 + flake.phase) * flake.sway;
+        ctx.fillStyle = "rgba(255,255,255,.9)"; ctx.beginPath(); ctx.arc(x, flake.y, flake.radius, 0, Math.PI * 2); ctx.fill();
+      });
+      ctx.fillStyle = "#f4f8fc";
+      ctx.beginPath(); ctx.moveTo(0, 425); ctx.quadraticCurveTo(160, 388, 315, 430); ctx.quadraticCurveTo(500, 459, 720, 410); ctx.lineTo(720, 480); ctx.lineTo(0, 480); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.arc(590, 381, 56, 0, Math.PI * 2); ctx.arc(590, 300 + Math.sin(t * 1.3) * 3, 37, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#34445a"; ctx.beginPath(); ctx.arc(578, 294 + Math.sin(t * 1.3) * 3, 3.8, 0, Math.PI * 2); ctx.arc(601, 294 + Math.sin(t * 1.3) * 3, 3.8, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#f28d43"; ctx.beginPath(); ctx.moveTo(587, 303 + Math.sin(t * 1.3) * 3); ctx.lineTo(616, 310 + Math.sin(t * 1.3) * 3); ctx.lineTo(587, 314 + Math.sin(t * 1.3) * 3); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = "#705740"; ctx.lineWidth = 5; ctx.lineCap = "round";
+      ctx.beginPath(); ctx.moveTo(544, 366); ctx.lineTo(505, 347); ctx.moveTo(636, 366); ctx.lineTo(671, 345); ctx.stroke();
+      ctx.fillStyle = "#d96f50"; ctx.fillRect(557, 255 + Math.sin(t * 1.3) * 3, 67, 8);
+      ctx.fillStyle = "#334260"; ctx.fillRect(574, 228 + Math.sin(t * 1.3) * 3, 37, 27);
+      ctx.fillStyle = "#e0a84e"; ctx.beginPath(); ctx.arc(590, 368, 5, 0, Math.PI * 2); ctx.arc(590, 391, 5, 0, Math.PI * 2); ctx.fill();
+    }
+
+    function drawSunny(ctx, t) {
+      updateDelta(sunnyState, t);
+      makeSky(ctx, "#4a9be8", "#bfe0f5");
+      const centerX = 360; const centerY = 226;
+      const rotation = t * .16;
+      for (let ray = 0; ray < 12; ray += 1) {
+        const angle = ray * Math.PI / 6 + rotation;
+        const pulse = 1 + Math.sin(t * 2.2 + ray * .35) * .18;
+        ctx.strokeStyle = "#ffd43b"; ctx.lineWidth = 10; ctx.lineCap = "round";
+        ctx.beginPath(); ctx.moveTo(centerX + Math.cos(angle) * 91, centerY + Math.sin(angle) * 91);
+        ctx.lineTo(centerX + Math.cos(angle) * (128 + 17 * pulse), centerY + Math.sin(angle) * (128 + 17 * pulse)); ctx.stroke();
+      }
+      const breathe = 1 + Math.sin(t * 1.7) * .035;
+      ctx.fillStyle = "#ffd43b"; ctx.beginPath(); ctx.arc(centerX, centerY, 79 * breathe, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255,.38)"; ctx.beginPath(); ctx.arc(centerX - 24, centerY - 27, 19, 0, Math.PI * 2); ctx.fill();
+      drawGround(ctx, "#62a86e", 423);
+    }
+
+    function drawRainy(ctx, t) {
+      const dt = updateDelta(rainyState, t);
+      makeSky(ctx, "#718a9c", "#aabac1");
+      rainyState.clouds.forEach((cloud, index) => drawCloud(ctx, cloud.x + Math.sin(t * .28 + index) * 9, cloud.y, cloud.scale, index ? "#707d89" : "#657482"));
+      const groundY = 427;
+      ctx.strokeStyle = "rgba(247,251,255,.68)"; ctx.lineWidth = 2.3; ctx.lineCap = "round";
+      rainyState.drops.forEach((drop) => {
+        drop.x += drop.drift * dt; drop.y += drop.speed * dt;
+        if (drop.y + drop.length >= groundY) {
+          rainyState.ripples.push({ x: drop.x, y: groundY, age: 0, duration: .62, maxRadius: randomBetween(10, 24) });
+          drop.y = randomBetween(-65, -12); drop.x = randomBetween(-30, 730);
+        }
+        ctx.beginPath(); ctx.moveTo(drop.x, drop.y); ctx.lineTo(drop.x - 8, drop.y + drop.length); ctx.stroke();
+      });
+      ctx.fillStyle = "#46545b"; ctx.fillRect(0, groundY, 720, 53);
+      ctx.fillStyle = "rgba(187,213,220,.28)"; ctx.fillRect(0, groundY, 720, 4);
+      for (let index = rainyState.ripples.length - 1; index >= 0; index -= 1) {
+        const ripple = rainyState.ripples[index]; ripple.age += dt;
+        if (ripple.age >= ripple.duration) { rainyState.ripples.splice(index, 1); continue; }
+        const progress = ripple.age / ripple.duration;
+        ctx.globalAlpha = 1 - progress;
+        ctx.strokeStyle = "#e0e8eb"; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.ellipse(ripple.x, ripple.y, ripple.maxRadius * progress, 3 + 5 * progress, 0, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    const scenes = [drawThunder, drawWindy, drawCloudy, drawSnowy, drawSunny, drawRainy];
+    function animate(timestamp) {
+      const t = timestamp / 1000;
+      scenes.forEach((scene, index) => scene(sceneContexts[index], t));
+      window.requestAnimationFrame(animate);
+    }
+    window.addEventListener("resize", () => animationCanvases.forEach((canvas, index) => {
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      const width = Math.round(CANVAS_WIDTH * ratio);
+      const height = Math.round(CANVAS_HEIGHT * ratio);
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width; canvas.height = height;
+        sceneContexts[index].setTransform(ratio, 0, 0, ratio, 0, 0);
+      }
+    }));
+    window.requestAnimationFrame(animate);
+
+    // 拖曳：支援觸控與滑鼠、格子交換，以及拖回名稱區
+    function startDrag(event) {
+      if (submitted || dragInfo || event.button !== 0) return;
+      event.preventDefault();
+      const chip = event.currentTarget;
+      const rect = chip.getBoundingClientRect();
+      dragInfo = {
+        pointerId: event.pointerId,
+        wordId: chip.dataset.wordId,
+        sourceSlot: chip.dataset.sourceSlot === undefined ? null : Number(chip.dataset.sourceSlot),
+        offsetX: event.clientX - rect.left,
+        offsetY: event.clientY - rect.top,
+        sourceElement: chip
+      };
+      dragGhost = chip.cloneNode(true);
+      dragGhost.classList.add("is-ghost");
+      dragGhost.style.width = `${rect.width}px`;
+      dragGhost.style.left = `${rect.left}px`;
+      dragGhost.style.top = `${rect.top}px`;
+      document.body.append(dragGhost);
+      chip.classList.add("is-dragging");
+      chip.setPointerCapture(event.pointerId);
+      moveGhost(event);
+    }
+
+    function moveGhost(event) {
+      if (!dragInfo || !dragGhost || event.pointerId !== dragInfo.pointerId) return;
+      dragGhost.style.left = `${event.clientX - dragInfo.offsetX}px`;
+      dragGhost.style.top = `${event.clientY - dragInfo.offsetY}px`;
+      dragGhost.style.visibility = "hidden";
+      const target = document.elementFromPoint(event.clientX, event.clientY);
+      dragGhost.style.visibility = "visible";
+      document.querySelectorAll(".weather-card").forEach((card) => card.classList.remove("is-target"));
+      document.querySelectorAll(".drop-slot").forEach((slot) => slot.classList.remove("over"));
+      const dropSlot = target?.closest(".drop-slot");
+      if (dropSlot) {
+        dropSlot.classList.add("over");
+        dropSlot.closest(".weather-card")?.classList.add("is-target");
+      }
+      if (target?.closest("#label-bank")) bank.classList.add("is-target");
+      else bank.classList.remove("is-target");
+    }
+
+    function clearDragState() {
+      if (!dragInfo) return;
+      const { sourceElement, pointerId } = dragInfo;
+      sourceElement.classList.remove("is-dragging");
+      if (sourceElement.hasPointerCapture(pointerId)) sourceElement.releasePointerCapture(pointerId);
+      dragGhost?.remove();
+      dragGhost = null;
+      dragInfo = null;
+      bank.classList.remove("is-target");
+      document.querySelectorAll(".weather-card").forEach((card) => card.classList.remove("is-target"));
+      document.querySelectorAll(".drop-slot").forEach((slot) => slot.classList.remove("over"));
+    }
+
+    function finishDrag(event, cancelled = false) {
+      if (!dragInfo || event.pointerId !== dragInfo.pointerId) return;
+      const { sourceSlot, wordId } = dragInfo;
+      let targetSlot = null;
+      if (!cancelled) {
+        dragGhost.style.visibility = "hidden";
+        const target = document.elementFromPoint(event.clientX, event.clientY);
+        const dropSlot = target?.closest(".drop-slot");
+        if (dropSlot) targetSlot = Number(dropSlot.dataset.slot);
+      }
+
+      if (!cancelled && targetSlot !== null) placeLabel(wordId, sourceSlot, targetSlot);
+      else if (!cancelled && sourceSlot !== null) state.slots[sourceSlot] = null;
+      clearDragState();
+      render();
+    }
+
+    function placeLabel(wordId, sourceSlot, targetSlot) {
+      if (sourceSlot === targetSlot) return;
+      const targetWord = state.slots[targetSlot];
+      if (sourceSlot === null) {
+        state.slots[targetSlot] = wordId;
+      } else {
+        state.slots[sourceSlot] = targetWord;
+        state.slots[targetSlot] = wordId;
+      }
+    }
+
+    function handleLabelKeydown(event, chip) {
+      if (submitted || (event.key !== "Enter" && event.key !== " ")) return;
+      event.preventDefault();
+      const wordId = chip.dataset.wordId;
+      const sourceSlot = chip.dataset.sourceSlot === undefined ? null : Number(chip.dataset.sourceSlot);
+      const openSlot = state.slots.findIndex((id) => id === null);
+      if (sourceSlot !== null) state.slots[sourceSlot] = null;
+      else if (openSlot !== -1) state.slots[openSlot] = wordId;
+      render();
+      document.querySelector("#game-hint").textContent = sourceSlot === null
+        ? "已將名稱放入第一個空格。"
+        : "已將名稱移回下方標籤區。";
+    }
+
+    document.addEventListener("pointermove", moveGhost);
+    document.addEventListener("pointerup", finishDrag);
+    document.addEventListener("pointercancel", (event) => finishDrag(event, true));
+
+    // 計時：以時間戳計算經過秒數，避免背景分頁節流造成時間落後。
+    function formatTime(totalSeconds) {
+      const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, "0");
+      const seconds = (totalSeconds % 60).toString().padStart(2, "0");
+      return `${minutes}:${seconds}`;
+    }
+
+    function getElapsedSeconds(now = Date.now()) {
+      const endTime = timerStoppedAt ?? now;
+      return Math.floor(Math.max(0, endTime - timerStartedAt) / 1000);
+    }
+
+    function updateTimerDisplay() {
+      document.querySelector("#timer").textContent = formatTime(getElapsedSeconds());
+    }
+
+    function startTimer() {
+      window.clearInterval(timerInterval);
+      timerInterval = window.setInterval(updateTimerDisplay, 1000);
+      updateTimerDisplay();
+    }
+    startTimer();
+    document.addEventListener("visibilitychange", updateTimerDisplay);
+
+    // 交卷：統計正確題數，逐題顯示答案與作答結果
+    function submitQuiz() {
+      if (submitted) return;
+      const unanswered = state.slots.filter((id) => id === null).length;
+      if (unanswered > 0 && !window.confirm(`還有 ${unanswered} 題未作答，確定要交卷嗎？`)) return;
+
+      if (dragInfo) clearDragState();
+      submitted = true;
+      timerStoppedAt = Date.now();
+      finalElapsedSeconds = getElapsedSeconds(timerStoppedAt);
+      window.clearInterval(timerInterval);
+      updateTimerDisplay();
+      let score = 0;
+      const resultList = document.querySelector("#results-list");
+      resultList.replaceChildren();
+      weatherData.forEach((item, index) => {
+        const chosenId = state.slots[index];
+        const chosen = weatherData.find((entry) => entry.id === chosenId);
+        const answer = weatherData.find((entry) => entry.id === answerByCard[index]);
+        const isUnanswered = chosenId === null;
+        const isCorrect = chosenId === answerByCard[index];
+        if (isCorrect) score += 1;
+        const card = document.querySelector(`[data-card-index="${index}"]`);
+        const slot = card.querySelector(".drop-slot");
+        card.classList.add(isCorrect ? "is-correct" : "is-incorrect");
+        card.querySelector(".answer-mark").textContent = isCorrect ? "✓ 正確" : isUnanswered ? "未作答" : "✕ 錯誤";
+        slot.classList.remove("is-filled");
+        slot.classList.add(isCorrect ? "is-result-correct" : isUnanswered ? "is-result-empty" : "is-result-incorrect");
+        if (isCorrect) {
+          slot.innerHTML = `<div class="slot-result"><span>✓ ${answer.chinese}</span></div>`;
+        } else if (isUnanswered) {
+          slot.innerHTML = `<div class="slot-result"><span>未作答</span><small>正確答案：${answer.chinese}</small></div>`;
+        } else {
+          slot.innerHTML = `<div class="slot-result"><span>✗ 你的答案：${chosen.chinese}</span><small>正確答案：${answer.chinese}</small></div>`;
+        }
+        const row = document.createElement("li");
+        row.innerHTML = `<span class="result-number">#${index + 1}</span><span class="result-answers"><span>你的答案：${chosen ? chosen.chinese : "未作答"}</span><small>正確答案：${answer.chinese}</small></span><strong class="${isCorrect ? "result-ok" : "result-no"}">${isCorrect ? "✓" : "✗"}</strong>`;
+        resultList.append(row);
+      });
+      document.querySelector("#score-number").textContent = `得分：${score} / 6`;
+      document.querySelector("#score-percent").textContent = `${Math.round(score / weatherData.length * 100)}%`;
+      document.querySelector("#score-time").textContent = `用時：${formatTime(finalElapsedSeconds)}`;
+      document.querySelector("#encouragement").textContent = score === 6
+        ? "太厲害了！全對！"
+        : score >= 4
+          ? "很不錯，再接再厲！"
+          : "再看看動畫，再試一次吧！";
+      document.querySelector("#game-hint").textContent = "已交卷，查看每題作答結果。按「重新開始」可再玩一次。";
+      document.querySelector("#submit-button").disabled = true;
+      document.querySelector("#submit-button").style.opacity = ".55";
+      document.querySelectorAll(".label-chip").forEach((chip) => { chip.disabled = true; chip.style.cursor = "default"; });
+      results.hidden = false;
+      document.querySelector("#close-results").focus();
+    }
+
+    function closeResults() {
+      results.hidden = true;
+      document.querySelector("#restart-button").focus();
+    }
+
+    function restartGame() {
+      state.slots.fill(null);
+      submitted = false;
+      timerStartedAt = Date.now();
+      timerStoppedAt = null;
+      finalElapsedSeconds = null;
+      document.querySelector("#submit-button").disabled = false;
+      document.querySelector("#submit-button").style.opacity = "";
+      document.querySelector("#game-hint").textContent = "拖曳名稱開始作答，放錯可隨時調整。";
+      document.querySelectorAll(".weather-card").forEach((card) => card.classList.remove("is-correct", "is-incorrect"));
+      document.querySelectorAll(".answer-mark").forEach((mark) => { mark.textContent = ""; });
+      results.hidden = true;
+      render();
+      startTimer();
+      document.querySelector("#label-bank .label-chip")?.focus({ preventScroll: true });
+    }
+
+    document.querySelector("#submit-button").addEventListener("click", submitQuiz);
+    document.querySelector("#restart-button").addEventListener("click", restartGame);
+    document.querySelector("#close-results").addEventListener("click", closeResults);
+    document.querySelector("#close-results-button").addEventListener("click", closeResults);
+    document.querySelector("#modal-restart").addEventListener("click", restartGame);
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !results.hidden) closeResults();
+    });
+  </script>
+</body>
+</html>
